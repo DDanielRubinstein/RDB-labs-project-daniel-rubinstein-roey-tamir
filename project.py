@@ -10,6 +10,23 @@ mse_cache = {}
 
 # Load the data
 def import_csv(filename):
+    """
+    Import data from a CSV file, convert it to a NumPy array, and perform angle-based sorting and index shifting.
+    
+    Input:
+        filename (str): The path to the CSV file containing points in a specific format.
+        
+    Output:
+        points (numpy.ndarray): An array containing the sorted and shifted points.
+        
+    The function does the following:
+    1. Reads the CSV and extracts points as tuples.
+    2. Converts the list of tuples to a NumPy array.
+    3. Computes the mean point in the XY plane.
+    4. Sorts the points based on their angles with respect to the mean point.
+    5. Shifts the indices of the points based on their proximity to the mean x-coordinate.
+    """
+        
     points = []
     data = pd.read_csv(filename)
     for i, row in data.iterrows():
@@ -49,9 +66,34 @@ def import_csv(filename):
 
 # Euclidean distance squered
 def euc_dist(a, b):
+    """
+    Calculate the squared Euclidean distance between two points in a 2D space.
+    
+    Input:
+        a (tuple): The coordinates (x, y) of the first point.
+        b (tuple): The coordinates (x, y) of the second point.
+        
+    Output:
+        float: The squared Euclidean distance between points a and b.
+    """
+
     return (a[0]-b[0])**2 + (a[1]-b[1])**2
 
 def generate_parab(start, end, distances):
+    """
+    Generate a parabolic function based on a given range of indices and distances.
+    
+    Input:
+        start (int): The starting index for the subset of distances.
+        end (int): The ending index for the subset of distances.
+        distances (numpy.ndarray): An array containing distances.
+        
+    Output:
+        parab (numpy.poly1d): A parabolic function fitted to the subset of distances.
+        
+    The function also uses a cache to store previously calculated parabolas to avoid redundant calculations.
+    """
+
     # Use start and end as the unique key for caching
     key = (start, end)
     
@@ -70,6 +112,21 @@ def generate_parab(start, end, distances):
     return parab
 
 def MSE(start, end, distances, parab):
+    """
+    Calculate the Mean Squared Error (MSE) between the observed distances and a parabolic fit.
+    
+    Input:
+        start (int): The starting index for the subset of distances.
+        end (int): The ending index for the subset of distances.
+        distances (numpy.ndarray): An array containing distances.
+        parab (numpy.poly1d): A parabolic function to compare against.
+        
+    Output:
+        mse_value (float): The calculated MSE value.
+        
+    The function uses a cache to store previously calculated MSE values to avoid redundant calculations.
+    """
+        
     # Use start and end as the unique key for caching
     key = (start, end)
     
@@ -89,6 +146,20 @@ def MSE(start, end, distances, parab):
 
 # Find the path of length k
 def segment(n, k, distances):
+    """
+    Perform dynamic programming to segment a set of distances into 'k' segments, each represented by a parabola.
+    
+    Input:
+        n (int): The total number of points.
+        k (int): The number of segments.
+        distances (numpy.ndarray): An array containing distances.
+        
+    Output:
+        path (list): A list of indices that represent the best segmentation.
+        
+    The function utilizes dynamic programming to efficiently find the best segmentation based on MSE.
+    """
+        
     D = np.full((n+1, k+1), np.inf)
     P = np.full((n+1, k+1), -1)
 
@@ -129,6 +200,19 @@ def segment(n, k, distances):
     return path
 
 def ransac_z_fit(points, iterations=100, threshold=0.5):
+    """
+    Perform RANSAC to find the most frequent z-coordinate within a given threshold.
+    
+    Input:
+        points (numpy.ndarray): An array containing 3D points.
+        iterations (int): The number of iterations for RANSAC. Default is 100.
+        threshold (float): The distance threshold for inliers. Default is 0.5.
+        
+    Output:
+        best_z (float): The z-coordinate with the most inliers.
+        best_inliers (int): The number of inliers for the best z-coordinate.
+    """
+        
     best_z = None
     best_inliers = 0
     for _ in range(iterations):
@@ -146,6 +230,19 @@ def ransac_z_fit(points, iterations=100, threshold=0.5):
     return best_z, best_inliers
 
 def plot_parab(range_start, range_end, distances):
+    """
+    Generate x and y values to plot a parabolic function based on a given range and distances.
+    
+    Input:
+        range_start (int): The starting index for the range of distances.
+        range_end (int): The ending index for the range of distances.
+        distances (numpy.ndarray): An array containing distances.
+        
+    Output:
+        x (numpy.ndarray): The x values for plotting.
+        Y (numpy.ndarray): The y values for plotting, based on the parabolic fit.
+    """
+        
     x = np.arange(range_start, range_end + 1)
     y = distances[range_start:range_end + 1]
     parab = generate_parab(range_start, range_end, distances)
@@ -153,6 +250,22 @@ def plot_parab(range_start, range_end, distances):
     return x, Y
 
 def bounding_box_3d(points):
+    """
+    Compute and visualize a 3D bounding box for a set of points.
+    
+    Input:
+        points (numpy.ndarray): An array containing 3D points.
+        
+    Output:
+        rectangle_3d (list): A list of tuples representing the 3D bounding box corners.
+        
+    The function performs the following tasks:
+    1. Estimates a 2D bounding box in the XY plane using a dynamic programming approach.
+    2. Visualizes the 2D bounding box and the segmented parabolas.
+    3. Estimates the floor and ceiling heights using RANSAC.
+    4. Constructs and returns the 3D bounding box.
+    """
+        
     # Use original 2D rectangle estimation method on XY plane
     n = len(points)
     k = 4
@@ -226,6 +339,8 @@ def bounding_box_3d(points):
 points_3d = import_csv("map.csv")
 estimated_bounding_box = bounding_box_3d(points_3d)
 
+
+# Visualisation
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.scatter(points_3d[:, 0], points_3d[:, 1], points_3d[:, 2], c='blue', marker='o', s=40, label="Points")
