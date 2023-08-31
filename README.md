@@ -4,7 +4,10 @@ Our project is focused on the drone-navigation aspect of the course and room mod
 
 ## Installation
 
-Use the [pip](https://pip.pypa.io/en/stable/) python package installer to install the following packages.
+1. Clone the repository by using ``git clone``, or alternatively download the ``.zip`` file.
+
+
+2. Use the [pip](https://pip.pypa.io/en/stable/) python package installer to install the following packages:
 
 ```bash
 pip install numpy
