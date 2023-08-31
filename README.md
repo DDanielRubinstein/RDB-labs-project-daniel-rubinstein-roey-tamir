@@ -37,6 +37,6 @@ If you haven't done so, please install the packages mentioned above, after which
 | $$\vdots$$ |
 | $$x_n \ y_n \ z_n$$ |
 
-> A table of size $1\times n$, such that the single column is labeled X, the points are seperated by rows, and the coordinataes are seperated by spaces.
+> A table of size $n\times 1$, such that the single column is labeled X, the points are seperated by rows, and the coordinataes are seperated by spaces.
 
 Once the `map.csv` file is present in the same directory, you are good to go! 
