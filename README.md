@@ -38,10 +38,3 @@ If you haven't done so, please install the packages mentioned above, after which
 | $$x_n \ y_n \ z_n$$ |
 
 > A table of size $1\times n$, such that the single column is labeled X, the points are seperated by rows, and the coordinataes are seperated by spaces.
-
-
-## Submittion information
-| Name  | ID |
-| ------------- | ------------- |
-| Daniel Rubinstein  | 214732745  |
-| Roey Tamir  | 326107042  |
