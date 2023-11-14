@@ -4,8 +4,7 @@ import math
 import pandas as pd
 import random as r 
 
-# Creating a cache for storing the parabolas and MSE values
-parabola_cache = {}
+# Creating a cache for storing the MSE values
 mse_cache = {}
 
 # Load the data
@@ -35,7 +34,7 @@ def import_csv(filename):
         
     points = np.array(points).astype(float)
 
-    # "ANGLE MANNER"
+    # "ANGLE-SORTING"
     # Compute the mean of the points in the XY plane
     mean_point = np.mean(points[:, :2], axis=0)
 
@@ -64,6 +63,80 @@ def import_csv(filename):
     
     return points
 
+# Synthetic data generation
+# NOTE: this function is not a required part of the project, and is simply a mean to demonstrate the result of running the algorithm - as was used throughtout the semester in our reports.
+"""
+def generate_3d_rectangle(num_points=1000):
+    # Define the corners of the bottom rectangle (floor)
+    lower_left = np.array([1, 1, 0])
+    upper_right = np.array([5, 3, 0])
+    
+    # Define the corners of the top rectangle (ceiling)
+    height = 4  # Arbitrary height
+    lower_left_top = lower_left + np.array([0, 0, height])
+    upper_right_top = upper_right + np.array([0, 0, height])
+
+    # Generate points for the bottom and top rectangles (similar to 2D version)
+    def generate_rectangle_points(ll, ur, num_points):
+        edges = [
+            np.linspace(ll, [ur[0], ll[1], ll[2]], num_points // 4, endpoint=False),
+            np.linspace([ur[0], ll[1], ll[2]], ur, num_points // 4, endpoint=False),
+            np.linspace(ur, [ll[0], ur[1], ur[2]], num_points // 4, endpoint=False),
+            np.linspace([ll[0], ur[1], ur[2]], ll, num_points // 4, endpoint=True)
+        ]
+        return np.concatenate(edges)
+
+    bottom_points = generate_rectangle_points(lower_left, upper_right, num_points // 2)
+    top_points = generate_rectangle_points(lower_left_top, upper_right_top, num_points // 2)
+
+    # Add some noise to the points
+    points = np.concatenate([bottom_points, top_points])
+
+    # Assuming a threshold to differentiate between bottom and upper points
+    threshold_z = 2  # Example threshold value
+
+    # Split points into bottom and upper based on the z-coordinate
+    bott = points[points[:, 2] < threshold_z]
+    upp = points[points[:, 2] >= threshold_z]
+
+    # Generate noise for bottom and upper points
+    noise_bottom = np.random.uniform(-0.75, 4, bott.shape[0])
+    noise_upper = np.random.uniform(0.75, 4, upp.shape[0])
+
+    # Add the noise to the respective points
+    bott[:, 2] += noise_bottom
+    upp[:, 2] += noise_upper
+    points = np.concatenate([bott, upp])
+    points = points + np.random.normal(scale=0.05, size=points.shape)
+    # "ANGLE MANNER"
+    # Compute the mean of the points in the XY plane
+    mean_point = np.mean(points[:, :2], axis=0)
+
+    # Compute the angle for each point with respect to the mean point
+    angles = [math.atan2(p[1] - mean_point[1], p[0] - mean_point[0]) for p in points[:, :2]]
+    
+    # Sort the points based on these angles
+    sorted_indices = np.argsort(angles)
+    points = points[sorted_indices]
+    # SHIFTING
+    # Compute the mean of the x-coordinates
+    mean_x = np.mean(points[:, 0])
+
+    # Find the point closest to the mean x-coordinate
+    start_index = np.argmin(np.abs(points[:, 0] - mean_x))
+
+    # Create an array of indices
+    indices = np.arange(len(points))
+
+    # Shift the indices
+    shifted_indices = (indices + start_index - 1) % len(points)
+
+    # Reorder the points based on the shifted indices
+    points = points[shifted_indices]
+    
+    return points
+"""
+
 # Euclidean distance squered
 def euc_dist(a, b):
     """
@@ -79,7 +152,27 @@ def euc_dist(a, b):
 
     return (a[0]-b[0])**2 + (a[1]-b[1])**2
 
-def generate_parab(start, end, distances):
+def fit_parabola(x, y):
+    """
+    Fit a parabola (quadratic polynomial) to the given data points using least squares linear regression.
+    
+    Parameters:
+    x (numpy.ndarray): The x-coordinates of the data points.
+    y (numpy.ndarray): The y-coordinates of the data points.
+    
+    Returns:
+    numpy.ndarray: Coefficients [a, b, c] of the fitted parabola y = ax^2 + bx + c.
+    """
+
+    # Construct the design matrix with columns [x^2, x, 1]
+    X = np.vstack([x**2, x, np.ones(len(x))]).T
+
+    # Solve the least squares problem
+    a, b, c = np.linalg.lstsq(X, y, rcond=None)[0]
+
+    return np.array([a, b, c])
+
+def generate_parab(u, v, distances):
     """
     Generate a parabolic function based on a given range of indices and distances.
     
@@ -94,24 +187,12 @@ def generate_parab(start, end, distances):
     The function also uses a cache to store previously calculated parabolas to avoid redundant calculations.
     """
 
-    # Use start and end as the unique key for caching
-    key = (start, end)
-    
-    # Check if the result is already in the cache
-    if key in parabola_cache:
-        return parabola_cache[key]
-    
     # Calculate x and y based on start and end indices
-    x = np.array(range(start, end))
-    y = distances[start:end]
-    
-    # If not in cache, calculate the parabola and store in cache
-    parab = np.poly1d(np.polyfit(x, y, 2))
-    parabola_cache[key] = parab
-    
-    return parab
+    x = np.array(range(u, v))
+    y = distances[u:v]
+    return np.poly1d(fit_parabola(x, y))
 
-def MSE(start, end, distances, parab):
+def MSE(u, v, distances):
     """
     Calculate the Mean Squared Error (MSE) between the observed distances and a parabolic fit.
     
@@ -127,18 +208,19 @@ def MSE(start, end, distances, parab):
     The function uses a cache to store previously calculated MSE values to avoid redundant calculations.
     """
         
-    # Use start and end as the unique key for caching
-    key = (start, end)
+    # Use u and v as the unique key for caching
+    key = (u, v)
     
     # Check if the result is already in the cache
     if key in mse_cache:
         return mse_cache[key]
     
     # Calculate x and y based on start and end indices
-    x = np.array(range(start, end))
-    y = distances[start:end]
+    x = np.array(range(u, v))
+    y = distances[u:v]
     
     # If not in cache, calculate the MSE and store in cache
+    parab = generate_parab(u, v, distances)
     mse_value = np.sum((y - parab(x))**2)
     mse_cache[key] = mse_value
     
@@ -168,27 +250,26 @@ def segment(n, k, distances):
     # The dynammic programming is done efficiently using the calculations of previous length
     for length in range(1, k + 1):
         # Iterate over each possible ending point of the segment
-        for end in range(length, n + 1):
+        for v in range(length, n + 1):
             min_dist = np.inf
             min_index = -1
             
             # Iterate over each possible starting point of the segment
-            for start in range(end - length + 1):
-                if end - start < 3: # Skip if not enough points to fit a parabola
+            for u in range(v - length + 1):
+                if v - u < 3: # Skip if not enough points to fit a parabola
                     continue
 
                 # Generate parabola (if didn't already) for the segment and calculate its MSE (weight)
-                parab = generate_parab(start, end, distances)
-                mse = MSE(start, end, distances, parab)
+                mse = MSE(u, v, distances)
                 
                 # always keep the best
-                if D[start, length - 1] + mse < min_dist:
-                    min_dist = D[start, length - 1] + mse
-                    min_index = start
+                if D[u, length - 1] + mse < min_dist:
+                    min_dist = D[u, length - 1] + mse
+                    min_index = u
 
             # Update phase in the DP    
-            D[end, length] = min_dist
-            P[end, length] = min_index
+            D[v, length] = min_dist
+            P[v, length] = min_index
 
     # Reconstruction phase
     path = []
@@ -199,35 +280,45 @@ def segment(n, k, distances):
     path.reverse()
     return path
 
-def ransac_z_fit(points, iterations=100, threshold=0.5):
+def ransac_z_fit(floorCeil, points, iterations=300, threshold=0.5):
     """
-    Perform RANSAC to find the most frequent z-coordinate within a given threshold.
+    Perform modified-RANSAC to find the most frequent z-coordinate within a given threshold with priority to high (ceil) and low (floor) points.
     
     Input:
+        floorCeil: -1 if supposed to estimate the floor, 1 if supposed to estimate the ceil.
         points (numpy.ndarray): An array containing 3D points.
-        iterations (int): The number of iterations for RANSAC. Default is 100.
+        iterations (int): The number of iterations for RANSAC. Default is 300.
         threshold (float): The distance threshold for inliers. Default is 0.5.
         
     Output:
-        best_z (float): The z-coordinate with the most inliers.
-        best_inliers (int): The number of inliers for the best z-coordinate.
+        best_z (float): The z-coordinate with the most inliers (also considering priorities).
     """
-        
+
+    # We can get rid of at least half of the points (the higher or the lower half given that we are looking for the floor or the ceiling, respectively). 
+    
+    med = np.median(points[:, 2])
+    bott = points[points[:, 2] < med]
+    upp = points[points[:, 2] >= med]
+
     best_z = None
-    best_inliers = 0
+    best_inliers = -np.inf
     for _ in range(iterations):
         # Randomly sample a point
-        sample = points[np.random.choice(points.shape[0], 1, replace=False)]
-        sample_z = sample[0, 2]
+        if(floorCeil == 1):
+            sample = points[np.random.choice(upp.shape[0], 1, replace=False)]
+        else:
+            sample = points[np.random.choice(bott.shape[0], 1, replace=False)]
+
+        sample_z = floorCeil * sample[0, 2]
         
         # Count inliers within the threshold
-        inliers = np.sum(np.abs(points[:, 2] - sample_z) < threshold)
+        inliers = np.sum(np.abs(floorCeil * points[:, 2] - sample_z) < threshold) * sample_z # give weight according to height
         
         if inliers > best_inliers:
             best_inliers = inliers
             best_z = sample_z
     
-    return best_z, best_inliers
+    return best_z
 
 def plot_parab(range_start, range_end, distances):
     """
@@ -244,7 +335,6 @@ def plot_parab(range_start, range_end, distances):
     """
         
     x = np.arange(range_start, range_end + 1)
-    y = distances[range_start:range_end + 1]
     parab = generate_parab(range_start, range_end, distances)
     Y = parab(x)
     return x, Y
@@ -265,8 +355,7 @@ def bounding_box_3d(points):
     3. Estimates the floor and ceiling heights using RANSAC.
     4. Constructs and returns the 3D bounding box.
     """
-        
-    # Use original 2D rectangle estimation method on XY plane
+
     n = len(points)
     k = 4
 
@@ -319,8 +408,8 @@ def bounding_box_3d(points):
     plt.show()
 
     # RANSAC-based estimation of floor and ceiling heights
-    floor_z, _ = ransac_z_fit(points[points[:, 2] < np.median(points[:, 2])])
-    ceiling_z, _ = ransac_z_fit(points[points[:, 2] > np.median(points[:, 2])])
+    floor_z = ransac_z_fit(-1, points[points[:, 2] < np.median(points[:, 2])])
+    ceiling_z = ransac_z_fit(1, points[points[:, 2] > np.median(points[:, 2])])
 
     # Construct 3D bounding box
     rectangle_3d = [
@@ -336,7 +425,12 @@ def bounding_box_3d(points):
 
     return rectangle_3d
 
-points_3d = import_csv("map.csv")
+
+# NOTE: End of auxiliary functions, start of execution.
+
+# Please note that we left an option to test the algorithm on synthetic data, 
+# to do so, replace the import function with the commented example below.
+points_3d = import_csv("map.csv") # generate_3d_rectangle(amount_of_points)
 estimated_bounding_box = bounding_box_3d(points_3d)
 
 
